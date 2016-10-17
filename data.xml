@@ -3,11 +3,11 @@
 <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over">
 
 <Parameters>
-  <Parameter name="center">-122.4144,37.7907,14</Parameter>
+  <Parameter name="center">121.4974,25.0676,16</Parameter>
   <Parameter name="description"><![CDATA[Data source for Wikimedia's fork of osm-bright2]]></Parameter>
   <Parameter name="format">pbf</Parameter>
-  <Parameter name="json"><![CDATA[{"vector_layers":[{"id":"landuse","description":"","fields":{"osm_id":"Number","class":"String","z_order":"Number","way_area":"Number"}},{"id":"waterway","description":"","fields":{"osm_id":"Number","class":"String"}},{"id":"water","description":"","fields":{"osm_id":"Number"}},{"id":"aeroway","description":"","fields":{"osm_id":"Number","type":"String"}},{"id":"building","description":"","fields":{"osm_id":"Number"}},{"id":"road","description":"","fields":{"osm_id":"Number","class":"String","is":"String"}},{"id":"admin","description":"","fields":{"osm_id":"Number","admin_level":"String","maritime":"Number","disputed":"Number"}},{"id":"country_label","description":"","fields":{"osm_id":"Number","name_en":"String","scalerank":"Number","code":"String"}},{"id":"place_label","description":"","fields":{"osm_id":"Number","name_en":"String","type":"String","ldir":"String","localrank":"Number"}},{"id":"poi_label","description":"","fields":{"osm_id":"Number","name":"String","name_en":"String","scalerank":"Number","localrank":"Number","maki":"String"}},{"id":"road_label","description":"","fields":{"osm_id":"Number","shield":"String","name_en":"String","ref":"String","reflen":"Number","len":"Number"}}]}]]></Parameter>
-  <Parameter name="maxzoom">14</Parameter>
+  <Parameter name="json"><![CDATA[{"vector_layers":[{"id":"landuse","description":"","fields":{"osm_id":"Number","name":"String","class":"String","z_order":"Number","way_area":"Number"}},{"id":"waterway","description":"","fields":{"osm_id":"Number","class":"String"}},{"id":"water","description":"","fields":{"osm_id":"Number"}},{"id":"aeroway","description":"","fields":{"osm_id":"Number","type":"String"}},{"id":"building","description":"","fields":{"osm_id":"Number"}},{"id":"road","description":"","fields":{"osm_id":"Number","class":"String","is":"String"}},{"id":"admin","description":"","fields":{"osm_id":"Number","admin_level":"String","maritime":"Number","disputed":"Number"}},{"id":"country_label","description":"","fields":{"osm_id":"Number","name_en":"String","scalerank":"Number","code":"String"}},{"id":"place_label","description":"","fields":{"osm_id":"Number","name_en":"String","type":"String","ldir":"String","localrank":"Number"}},{"id":"poi_label","description":"","fields":{"osm_id":"Number","name":"String","name_en":"String","scalerank":"Number","localrank":"Number","maki":"String"}},{"id":"road_label","description":"","fields":{"osm_id":"Number","shield":"String","name_en":"String","ref":"String","reflen":"Number","len":"Number"}}]}]]></Parameter>
+  <Parameter name="maxzoom">16</Parameter>
   <Parameter name="minzoom">0</Parameter>
   <Parameter name="name"><![CDATA[osm-bright]]></Parameter>
 </Parameters>
@@ -32,6 +32,7 @@
        <Parameter name="table"><![CDATA[(
 SELECT
     osm_id,
+    name,
     way,
     CASE
       WHEN "natural" = 'wood' OR landuse IN ('wood', 'forest') THEN 'wood'
@@ -543,7 +544,16 @@ SELECT osm_id, way1 AS way, name, name_en, rank AS scalerank, localrank, maki FR
       WHEN highway='bus_stop' THEN 'bus'
       WHEN railway='tram_stop' THEN 'rail-light'
       WHEN amenity='ferry_terminal' THEN 'ferry'
-      ELSE bail_out('Cannot classify poi_label, osm_id=%s', osm_id::TEXT)
+      WHEN amenity='restaurant' THEN 'restaurant'
+      WHEN amenity='bank' THEN 'bank'
+      WHEN amenity='cafe' THEN 'cafe'
+      WHEN amenity='police' THEN 'police'
+      WHEN amenity='clinic' THEN 'hospital'
+      WHEN amenity='parking' THEN 'parking'
+      WHEN amenity='library' THEN 'library'
+      WHEN shop IS NOT NULL THEN 'grocery'
+      ELSE 'circle'
+      --ELSE bail_out('Cannot classify poi_label, osm_id=%s', osm_id::TEXT)
     END AS maki,
     1 AS localrank,
     way AS way1
@@ -555,8 +565,11 @@ SELECT osm_id, way1 AS way, name, name_en, rank AS scalerank, localrank, maki FR
         (public_transport='stop_position' AND (tags->'subway') IS NOT NULL)
         OR railway IN ('station', 'tram_stop')
         OR highway='bus_stop'
-        OR amenity='ferry_terminal'
+        --OR amenity='ferry_terminal'
+        OR amenity IS NOT NULL
+        OR shop IS NOT NULL
       )
+    AND name IS NOT NULL
     AND way && !bbox!
 UNION ALL
   SELECT
@@ -569,7 +582,12 @@ UNION ALL
       WHEN highway='bus_stop' THEN 'bus'
       WHEN railway='tram_stop' THEN 'rail-light'
       WHEN amenity='ferry_terminal' THEN 'ferry'
-      ELSE bail_out('Cannot classify poi_label, osm_id=%s', osm_id::TEXT)
+      WHEN amenity='hospital' THEN 'hospital'
+      WHEN leisure='park' THEN 'park'
+      WHEN amenity IN ('school', 'university') THEN 'school'
+      WHEN amenity='library' THEN 'library'
+      ELSE 'circle'
+      --ELSE bail_out('Cannot classify poi_label, osm_id=%s', osm_id::TEXT)
     END AS maki,
     1 AS localrank,
     ST_Centroid(way) AS way1
@@ -581,8 +599,12 @@ UNION ALL
         (public_transport='stop_position' AND (tags->'subway') IS NOT NULL)
         OR railway IN ('station', 'tram_stop')
         OR highway='bus_stop'
-        OR amenity='ferry_terminal'
+        OR amenity IS NOT NULL
+        OR leisure IS NOT NULL
+        OR tourism is NOT NULL
+        --OR amenity='hospital'
       )
+    AND name IS NOT NULL
     AND way && !bbox!
 ) data JOIN (
   VALUES
@@ -590,7 +612,18 @@ UNION ALL
     ('rail-metro', 1),
     ('rail-light', 1),
     ('ferry', 1),
-    ('bus', 3)
+    ('school', 2),
+    ('hospital', 2),
+    ('bank', 2),
+    ('police', 2),
+    ('park', 2),
+    ('library', 2),
+    ('restaurant', 3),
+    ('cafe', 3),
+    ('bus', 3),
+    ('parking', 4),
+    ('grocery', 8),
+    ('circle', 9)
   ) AS ranks(class, rank) ON class=maki
   ORDER BY scalerank, maki DESC, osm_id
 ) poi_label]]></Parameter>
