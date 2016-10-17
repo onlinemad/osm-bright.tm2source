@@ -1,5 +1,5 @@
 {
-  "name": "osm-bright-source",
+  "name": "osm-rpoi-bright-source",
   "version": "0.0.2",
   "description": "Data source for Wikimedia fork of the OSM Bright skin",
   "main": "./package.json",
